@@ -1,2 +1,47 @@
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA',
+        '.'
+      ]
+
+  # Step 2: Push Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'push',
+        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA'
+      ]
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      [
+        'run',
+        'deploy',
+        'asb-ml-app',
+        '--image',
+        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA',
+        '--region',
+        'asia-southeast1',
+        '--platform',
+        'managed',
+        '--allow-unauthenticated',
+        '--memory',
+        '2Gi',
+        '--cpu',
+        '2',
+        '--timeout',
+        '600',
+        '--concurrency',
+        '5'
+      ]
+
+# This line is REQUIRED to fix the build.service_account error
 options:
   logging: CLOUD_LOGGING_ONLY
