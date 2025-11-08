@@ -4,9 +4,14 @@ substitutions:
   _IMAGE_NAME: "asb-ml-app"
   _SERVICE_NAME: "asb-ml-app"
 # cloudbuild.yaml
+# cloudbuild.yaml
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa', '.']
+  # If your Dockerfile needs GEMINI_API_KEY as a build-arg:
+  # args: ['build', '--build-arg', 'GEMINI_API_KEY=$${GEMINI_API_KEY}', '-t', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa', '.']
+  # env:
+  # - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # Temporarily make it an environment variable for this step
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa']
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -14,9 +19,9 @@ steps:
   args:
   - '-c'
   - |
-    # Use the GEMINI_API_KEY variable which will be populated by the secret
-    # For example, if your app needs it during deployment or configuration:
-    echo "Deploying with API Key: ${GEMINI_API_KEY:0:5}..." # Example: printing first 5 chars for verification, DO NOT print full key
+    # In this script, GEMINI_API_KEY will be available as a shell environment variable
+    # when it's passed from the `env` section below.
+    # If your application needs it during deployment, set it for Cloud Run here:
     gcloud run deploy asb-ml-app \
       --image asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa \
       --region asia-southeast1 \
@@ -26,16 +31,16 @@ steps:
       --cpu 2 \
       --timeout 600 \
       --concurrency 5 \
-      --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # Pass the secret as an env var to Cloud Run
-  # Define the environment variable to be populated from the secret
+      --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # Use $$ to pass to Cloud Run
   env:
-  - 'GEMINI_API_KEY=${GEMINI_API_KEY}' # This uses the secret from the available_secrets
+  - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # This maps the secret value to an env var for THIS step
 
-# Define which secrets are available to the build and how to map them
+# This section tells Cloud Build to fetch the secret
 availableSecrets:
   secretManager:
-  - versionName: projects/ecgcga/secrets/gemini-api-key/versions/latest # Adjust if your project ID is different
-    env: 'GEMINI_API_KEY' # Name of the internal variable that holds the secret
+  - versionName: projects/ecgcga/secrets/gemini-api-key/versions/latest # Your project ID
+    env: '_GEMINI_API_KEY' # Internal name for the secret's value within Cloud Build
+
 
 # Optional: automatically set environment variables or secrets (uncomment if needed)
 #   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
