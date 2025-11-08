@@ -2,20 +2,84 @@ substitutions:
   _AR_REGION: "asia-southeast1"
   _AR_REPO: "app-repo"
   _IMAGE_NAME: "asb-ml-app"
+  _SERVICE_NAME: "asb-ml-app"
 
 steps:
-  - name: gcr.io/cloud-builders/docker
-    args: ['build','-t','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA','.']
+  # STEP 1: Build Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA",
+        "."
+      ]
 
-  - name: gcr.io/cloud-builders/docker
-    args: ['push','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA']
+  # STEP 2: Push Docker image to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "push",
+        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA"
+      ]
 
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  # STEP 3: Deploy image to Cloud Run
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
-      ['run','deploy','${_IMAGE_NAME}',
-       '--image','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA',
-       '--region','asia-southeast1','--platform','managed','--allow-unauthenticated',
-       '--memory','2Gi','--cpu','2','--timeout','600','--concurrency','5']
+      [
+        "run",
+        "deploy",
+        "${_SERVICE_NAME}",
+        "--image",
+        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA",
+        "--region",
+        "${_AR_REGION}",
+        "--platform",
+        "managed",
+        "--allow-unauthenticated",
+        "--memory",
+        "2Gi",
+        "--cpu",
+        "2",
+        "--timeout",
+        "600",
+        "--concurrency",
+        "5"
+      ]
+
+# Optional: automatically set environment variables or secrets (uncomment if needed)
+#   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+#     entrypoint: gcloud
+#     args:
+#       [
+#         "run",
+#         "services",
+#         "update",
+#         "${_SERVICE_NAME}",
+#         "--region",
+#         "${_AR_REGION}",
+#         "--update-env-vars",
+#         "GEMINI_API_KEY=YOUR_API_KEY_HERE"
+#       ]
+
+#   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+#     entrypoint: gcloud
+#     args:
+#       [
+#         "run",
+#         "services",
+#         "update",
+#         "${_SERVICE_NAME}",
+#         "--region",
+#         "${_AR_REGION}",
+#         "--update-secrets",
+#         "GEMINI_API_KEY=gemini_api_key:latest"
+#       ]
+
+# Fixes “invalid build: must specify logs bucket or logging option”
 options:
   logging: CLOUD_LOGGING_ONLY
+
+# Control build timeout (up to 1h by default)
+timeout: 1200s
