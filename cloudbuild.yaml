@@ -3,17 +3,14 @@ substitutions:
   _AR_REPO: "app-repo"
   _IMAGE_NAME: "asb-ml-app"
   _SERVICE_NAME: "asb-ml-app"
-# cloudbuild.yaml
 steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa', '.']
-  # If your Dockerfile needs GEMINI_API_KEY during the build stage,
-  # you would typically pass it as a build-arg, not directly as an env var to docker build.
-  # Example for build-arg (requires ARG in Dockerfile):
-  # args: ['build', '--build-arg', 'GEMINI_API_KEY=${_GEMINI_API_KEY}', '-t', '...', '.']
+  # If your Dockerfile needs GEMINI_API_KEY as a build-arg, you would enable this env
+  # and potentially a build-arg in the args section:
   # env:
-  # - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # This makes it available as an env var FOR THIS STEP.
-                                        # Only add if `docker build` command or pre/post hooks need it.
+  # - 'GEMINI_API_KEY=${_GEMINI_API_KEY}'
+  # args: ['build', '--build-arg', 'GEMINI_API_KEY=${_GEMINI_API_KEY}', '-t', '...', '.']
 
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa']
@@ -23,10 +20,10 @@ steps:
   args:
   - '-c'
   - |
-    # This script runs within the environment of this step.
-    # The GEMINI_API_KEY environment variable will be available here
-    # because it's defined in the 'env' section for this step below.
-    # When deploying to Cloud Run, use $$ for Cloud Run's env vars.
+    # The GEMINI_API_KEY environment variable is now available in this shell
+    # because it's explicitly set in the 'env' block below for this step.
+    # When passing to Cloud Run, use the double dollar sign ($$) to defer
+    # variable expansion to the gcloud command.
     gcloud run deploy asb-ml-app \
       --image asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa \
       --region asia-southeast1 \
@@ -36,15 +33,17 @@ steps:
       --cpu 2 \
       --timeout 600 \
       --concurrency 5 \
-      --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # <-- This is where it's used
-  env: # <--- This is the crucial part that was likely missing or incorrect for this step
-  - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # Map the internal secret to an env var for this step
+      --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # <-- This is where the variable is used for Cloud Run
+  env: # <--- This block is essential for using the secret in this step
+  - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # This maps the internally fetched secret (_GEMINI_API_KEY)
+                                        # to an environment variable named GEMINI_API_KEY for this specific step.
 
-# This section correctly declares which secret to fetch from Secret Manager
+# This section tells Cloud Build to fetch the secret from Secret Manager
 availableSecrets:
   secretManager:
   - versionName: projects/ecgcga/secrets/gemini-api-key/versions/latest
-    env: '_GEMINI_API_KEY' # This makes the secret's value available internally as _GEMINI_API_KEY
+    env: '_GEMINI_API_KEY' # This makes the secret's value available internally as '_GEMINI_API_KEY'
+
 # Optional: automatically set environment variables or secrets (uncomment if needed)
 #   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
 #     entrypoint: gcloud
