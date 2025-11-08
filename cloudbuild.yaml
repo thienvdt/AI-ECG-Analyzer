@@ -29,13 +29,13 @@ steps:
       --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # Pass the secret as an env var to Cloud Run
   # Define the environment variable to be populated from the secret
   env:
-  - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # This uses the secret from the available_secrets
+  - 'GEMINI_API_KEY=${GEMINI_API_KEY}' # This uses the secret from the available_secrets
 
 # Define which secrets are available to the build and how to map them
 availableSecrets:
   secretManager:
   - versionName: projects/ecgcga/secrets/gemini-api-key/versions/latest # Adjust if your project ID is different
-    env: '_GEMINI_API_KEY' # Name of the internal variable that holds the secret
+    env: 'GEMINI_API_KEY' # Name of the internal variable that holds the secret
 
 # Optional: automatically set environment variables or secrets (uncomment if needed)
 #   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
