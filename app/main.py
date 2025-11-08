@@ -294,7 +294,7 @@ with st.sidebar:
         st.info("Xóa file trên để sử dụng file mẫu.")
 
     st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown("<div class='footer-text'>Phát triển bởi <a href='#'>BS. Hà Ngọc Cường</a></div>", unsafe_allow_html=True)
+    st.markdown("<div class='footer-text'>Phát triển bởi <a href='#'>Ths. BS. Nguyễn Lê Hoài Linh</a></div>", unsafe_allow_html=True)
 
 #---------------------------------#
 # Main panel - Tab 1: ECG Classification
@@ -560,4 +560,4 @@ with tabs[1]:
 
 # Footer
 st.markdown("---")
-st.markdown("<div class='footer-text'>Phát triển bởi BS. Hà Ngọc Cường - Ứng dụng Machine Learning trong Y tế</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer-text'>Phát triển bởi Ths. BS. Nguyễn Lê Hoài Linh - Ứng dụng Machine Learning trong Y tế</div>", unsafe_allow_html=True)
