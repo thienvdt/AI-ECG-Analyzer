@@ -294,7 +294,7 @@ with st.sidebar:
         st.info("Xóa file trên để sử dụng file mẫu.")
 
     st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown("<div class='footer-text'>Phát triển bởi <a href='#'>Ths. BS. Nguyễn Lê Hoài Linh</a></div>", unsafe_allow_html=True)
+    st.markdown("<div class='footer-text'>Phát triển bởi <a href='#'>BS. Nguyễn Lê Hoài Linh</a></div>", unsafe_allow_html=True)
 
 #---------------------------------#
 # Main panel - Tab 1: ECG Classification
@@ -396,48 +396,71 @@ with tabs[1]:
         # Load API Key from Streamlit secrets
         try:
             GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-            if not GEMINI_API_KEY:
-                st.error("Thiếu API key! Vui lòng thêm vào Streamlit secrets.")
+            if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_API_KEY_HERE":
+                st.error("⚠️ Thiếu API key hợp lệ! Vui lòng thêm Gemini API key vào file .streamlit/secrets.toml")
+                st.info("🔑 Để lấy API key miễn phí: https://makersuite.google.com/app/apikey")
                 has_api_key = False
             else:
                 has_api_key = True
-        except:
-            st.warning("Để kích hoạt chatbot với Gemini AI, vui lòng thêm Gemini API key vào Streamlit secrets. Hiện đang sử dụng cơ sở kiến thức có sẵn.")
+        except Exception as e:
+            st.warning("⚠️ Để kích hoạt chatbot với Gemini AI, vui lòng thêm Gemini API key vào file .streamlit/secrets.toml")
+            st.info("🔑 Hướng dẫn lấy API key: https://makersuite.google.com/app/apikey")
             GEMINI_API_KEY = None
             has_api_key = False
         
         # Function to generate responses about ECG and heart health
         def generate_cardio_response(prompt):
             if has_api_key:
-                # Configure Gemini API
-                genai.configure(api_key=GEMINI_API_KEY)
-                
-                gemini_prompt = f"""
-                Bạn là trợ lý tim mạch chuyên về giải thích ECG, rối loạn nhịp tim và sức khỏe tim mạch.
-                Chỉ trả lời các câu hỏi liên quan đến tim mạch và ECG với thông tin y tế chính xác.
-                Nếu câu hỏi không liên quan đến tim mạch, hãy lịch sự thông báo rằng bạn chỉ có thể trả lời 
-                các câu hỏi về tim và ECG.
-                
-                Đặc biệt tập trung vào các tình trạng và mẫu ECG sau:
-                - Nhịp xoang bình thường
-                - Rung nhĩ (Atrial Fibrillation)
-                - Cuồng nhĩ (Atrial Flutter)
-                - Nhịp nhanh thất
-                - Kéo dài khoảng QT
-                - ST chênh lên và chênh xuống
-                - Blốc tim (độ 1, độ 2, độ 3)
-                - Blốc nhánh bó
-                - Co thắt thất sớm
-                - Co thắt nhĩ sớm
-                - Vị trí chuyển đạo và giải thích ECG
-                
-                **Câu hỏi của người dùng:** {prompt}
-                Hãy cung cấp câu trả lời rõ ràng, ngắn gọn và chính xác bằng tiếng Việt về tim mạch và giải thích ECG.
-                """
-                model = genai.GenerativeModel("gemini-2.5-pro")
-                response = model.generate_content(gemini_prompt)
-                
-                return response.text
+                try:
+                    # Configure Gemini API
+                    genai.configure(api_key=GEMINI_API_KEY)
+                    
+                    gemini_prompt = f"""
+                    Bạn là trợ lý tim mạch chuyên về giải thích ECG, rối loạn nhịp tim và sức khỏe tim mạch.
+                    Chỉ trả lời các câu hỏi liên quan đến tim mạch và ECG với thông tin y tế chính xác.
+                    Nếu câu hỏi không liên quan đến tim mạch, hãy lịch sự thông báo rằng bạn chỉ có thể trả lời 
+                    các câu hỏi về tim và ECG.
+                    
+                    Đặc biệt tập trung vào các tình trạng và mẫu ECG sau:
+                    - Nhịp xoang bình thường
+                    - Rung nhĩ (Atrial Fibrillation)
+                    - Cuồng nhĩ (Atrial Flutter)
+                    - Nhịp nhanh thất
+                    - Kéo dài khoảng QT
+                    - ST chênh lên và chênh xuống
+                    - Blốc tim (độ 1, độ 2, độ 3)
+                    - Blốc nhánh bó
+                    - Co thắt thất sớm
+                    - Co thắt nhĩ sớm
+                    - Vị trí chuyển đạo và giải thích ECG
+                    
+                    **Câu hỏi của người dùng:** {prompt}
+                    Hãy cung cấp câu trả lời rõ ràng, ngắn gọn và chính xác bằng tiếng Việt về tim mạch và giải thích ECG.
+                    """
+                    
+                    # Try different model names in order of preference
+                    model_names = ["gemini-pro-latest", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-1.0-pro"]
+                    
+                    for model_name in model_names:
+                        try:
+                            model = genai.GenerativeModel(model_name)
+                            response = model.generate_content(gemini_prompt)
+                            break
+                        except Exception as model_error:
+                            if "not found" in str(model_error) and model_name != model_names[-1]:
+                                continue  # Try next model
+                            else:
+                                raise model_error  # Re-raise if it's the last model or different error
+                    
+                    return response.text
+                except Exception as e:
+                    error_msg = str(e)
+                    if "API_KEY_INVALID" in error_msg:
+                        return "❌ API key không hợp lệ. Vui lòng kiểm tra API key Gemini của bạn trong file .streamlit/secrets.toml. Bạn có thể lấy API key miễn phí tại: https://makersuite.google.com/app/apikey"
+                    elif "quota" in error_msg.lower():
+                        return "⚠️ Đã vượt quá giới hạn sử dụng API. Vui lòng kiểm tra quota của API key hoặc thử lại sau."
+                    else:
+                        return f"❌ Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Chi tiết lỗi: {error_msg}. Vui lòng thử lại."
             else:
                 # Dictionary of common ECG and cardiology questions and answers
                 cardio_knowledge = {
@@ -560,4 +583,4 @@ with tabs[1]:
 
 # Footer
 st.markdown("---")
-st.markdown("<div class='footer-text'>Phát triển bởi Ths. BS. Nguyễn Lê Hoài Linh - Ứng dụng Machine Learning trong Y tế</div>", unsafe_allow_html=True)
+st.markdown("<div class='footer-text'>Phát triển bởi BS. Nguyễn Lê Hoài Linh - Ứng dụng Machine Learning trong Y tế</div>", unsafe_allow_html=True)
