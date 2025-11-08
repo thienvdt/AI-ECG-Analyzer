@@ -1,47 +1,21 @@
+substitutions:
+  _AR_REGION: "asia-southeast1"
+  _AR_REPO: "app-repo"
+  _IMAGE_NAME: "asb-ml-app"
+
 steps:
-  # Step 1: Build Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      [
-        'build',
-        '-t',
-        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA',
-        '.'
-      ]
+  - name: gcr.io/cloud-builders/docker
+    args: ['build','-t','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA','.']
 
-  # Step 2: Push Docker image
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      [
-        'push',
-        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA'
-      ]
+  - name: gcr.io/cloud-builders/docker
+    args: ['push','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA']
 
-  # Step 3: Deploy to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
-      [
-        'run',
-        'deploy',
-        'asb-ml-app',
-        '--image',
-        'asia-southeast1-docker.pkg.dev/$PROJECT_ID/app-repo/asb-ml-app:$SHORT_SHA',
-        '--region',
-        'asia-southeast1',
-        '--platform',
-        'managed',
-        '--allow-unauthenticated',
-        '--memory',
-        '2Gi',
-        '--cpu',
-        '2',
-        '--timeout',
-        '600',
-        '--concurrency',
-        '5'
-      ]
-
-# This line is REQUIRED to fix the build.service_account error
+      ['run','deploy','${_IMAGE_NAME}',
+       '--image','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA',
+       '--region','asia-southeast1','--platform','managed','--allow-unauthenticated',
+       '--memory','2Gi','--cpu','2','--timeout','600','--concurrency','5']
 options:
   logging: CLOUD_LOGGING_ONLY
