@@ -19,7 +19,13 @@ ADD models /models
 ADD .streamlit /.streamlit
 
 # rename production config file to config to use the production configuration in streamlit
-RUN cp .streamlit/prod-config.toml .streamlit/config.toml
+# Ensure folder exists in image
+COPY .streamlit/ .streamlit/
+RUN if [ -f ".streamlit/prod-config.toml" ]; then \
+      cp .streamlit/prod-config.toml .streamlit/config.toml ; \
+    else \
+      printf "[server]\naddress = \"0.0.0.0\"\nport = 8080\n" > .streamlit/config.toml ; \
+    fi
 
 # install the requirements
 RUN pip3 install -r app/requirements.txt
