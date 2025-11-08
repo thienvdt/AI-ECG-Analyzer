@@ -187,7 +187,7 @@ MIT License - xem file [LICENSE](LICENSE) để biết chi tiết
 
 ## 👨‍⚕️ Tác giả
 
-**BS. Hà Ngọc Cường**
+**Ths. BS. Nguyễn Lê Hoài Linh**
 - Chuyên môn: Machine Learning trong Y tế
 - Project: Ứng dụng AI phân tích ECG
 
