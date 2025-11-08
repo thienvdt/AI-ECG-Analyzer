@@ -3,50 +3,39 @@ substitutions:
   _AR_REPO: "app-repo"
   _IMAGE_NAME: "asb-ml-app"
   _SERVICE_NAME: "asb-ml-app"
-
+# cloudbuild.yaml
 steps:
-  # STEP 1: Build Docker image
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "build",
-        "-t",
-        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA",
-        "."
-      ]
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa']
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    # Use the GEMINI_API_KEY variable which will be populated by the secret
+    # For example, if your app needs it during deployment or configuration:
+    echo "Deploying with API Key: ${GEMINI_API_KEY:0:5}..." # Example: printing first 5 chars for verification, DO NOT print full key
+    gcloud run deploy asb-ml-app \
+      --image asia-southeast1-docker.pkg.dev/ecgcga/app-repo/asb-ml-app:3f3c1fa \
+      --region asia-southeast1 \
+      --platform managed \
+      --allow-unauthenticated \
+      --memory 2Gi \
+      --cpu 2 \
+      --timeout 600 \
+      --concurrency 5 \
+      --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY # Pass the secret as an env var to Cloud Run
+  # Define the environment variable to be populated from the secret
+  env:
+  - 'GEMINI_API_KEY=${_GEMINI_API_KEY}' # This uses the secret from the available_secrets
 
-  # STEP 2: Push Docker image to Artifact Registry
-  - name: "gcr.io/cloud-builders/docker"
-    args:
-      [
-        "push",
-        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA"
-      ]
-
-  # STEP 3: Deploy image to Cloud Run
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
-    entrypoint: gcloud
-    args:
-      [
-        "run",
-        "deploy",
-        "${_SERVICE_NAME}",
-        "--image",
-        "${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA",
-        "--region",
-        "${_AR_REGION}",
-        "--platform",
-        "managed",
-        "--allow-unauthenticated",
-        "--memory",
-        "2Gi",
-        "--cpu",
-        "2",
-        "--timeout",
-        "600",
-        "--concurrency",
-        "5"
-      ]
+# Define which secrets are available to the build and how to map them
+availableSecrets:
+  secretManager:
+  - versionName: projects/ecgcga/secrets/gemini-api-key/versions/latest # Adjust if your project ID is different
+    env: '_GEMINI_API_KEY' # Name of the internal variable that holds the secret
 
 # Optional: automatically set environment variables or secrets (uncomment if needed)
 #   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
