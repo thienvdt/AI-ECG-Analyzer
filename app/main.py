@@ -1,9 +1,11 @@
 import streamlit as st
+from streamlit.components.v1 import html
 from tensorflow.keras.models import load_model
 import numpy as np
 import scipy.io
 from src.visualization import plot_ecg
 import google.generativeai as genai  # For the Gemini integration
+import json
 
 #---------------------------------#
 # Page layout
@@ -15,20 +17,55 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+#---------------------------------#
+# Helper functions for localStorage
+
+def get_from_local_storage(key, default_value=""):
+    """Get value from localStorage using JavaScript"""
+    get_storage_script = f"""
+    <script>
+        var value = localStorage.getItem('{key}');
+        if (value) {{
+            window.parent.postMessage({{type: 'streamlit:setComponentValue', value: value}}, '*');
+        }}
+    </script>
+    """
+    result = html(get_storage_script, height=0)
+    return result if result else default_value
+
+def save_to_local_storage(key, value):
+    """Save value to localStorage using JavaScript"""
+    # Escape quotes in value
+    safe_value = str(value).replace('"', '\\"').replace("'", "\\'")
+    save_storage_script = f"""
+    <script>
+        localStorage.setItem('{key}', '{safe_value}');
+    </script>
+    """
+    html(save_storage_script, height=0)
+
 # Custom CSS for beautification
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    }
+    
     .main-header {
         font-size: 2.5rem;
         color: #E63946;
         text-align: center;
         margin-bottom: 0.5rem;
+        font-weight: 700;
     }
     .sub-header {
         font-size: 1.2rem;
         color: #457B9D;
         text-align: center;
         margin-bottom: 1.5rem;
+        font-weight: 400;
     }
     .stTabs [data-baseweb="tab-list"] {
         gap: 2rem;
@@ -41,11 +78,12 @@ st.markdown("""
         gap: 1rem;
         padding-top: 0.5rem;
         padding-bottom: 0.5rem;
+        font-weight: 500;
     }
     .stTabs [aria-selected="true"] {
         background-color: #A8DADC;
         color: #1D3557;
-        font-weight: bold;
+        font-weight: 700;
     }
     .prediction-box {
         background-color: #F1FAEE;
@@ -62,6 +100,7 @@ st.markdown("""
         text-align: center;
         color: #1D3557;
         margin-top: 2rem;
+        font-weight: 400;
     }
     .stSidebar {
         background-color: #000000;
@@ -71,6 +110,7 @@ st.markdown("""
         border-bottom: 2px solid #E63946;
         padding-bottom: 8px;
         margin-bottom: 16px;
+        font-weight: 600;
     }
     .info-card {
         background-color: #F1FAEE;
@@ -80,93 +120,106 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
     
-    /* Tablet-like response area and chat styling */
-    .tablet-response {
-        background-color: #f7f9fc;
-        border-radius: 12px;
-        padding: 20px;
-        border: 1px solid #e0e5ec;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
-        margin-bottom: 20px;
-        font-family: 'Courier New', monospace;
-        max-height: 300px;
-        overflow-y: auto;
-    }
-    
-    /* Custom scrollbar for the tablet */
-    .tablet-response::-webkit-scrollbar {
-        width: 8px;
-    }
-    
-    .tablet-response::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-    }
-    
-    .tablet-response::-webkit-scrollbar-thumb {
-        background: #E63946;
-        border-radius: 10px;
-        color: #000000;
-    }
-    
-    .typewriter-text {
-        overflow: hidden;
-        border-right: .15em solid #E63946;
-        white-space: pre-wrap;
-        margin: 0 auto;
-        letter-spacing: .1em;
-        color: #000000;
-        animation: 
-            typing 3.5s steps(40, end),
-            blink-caret .75s step-end infinite;
-    }
-    
-    @keyframes typing {
-        from { max-width: 0 }
-        to { max-width: 100% }
-    }
-    
-    @keyframes blink-caret {
-        from, to { border-color: transparent }
-        50% { border-color: #E63946; }
-    }
-    
-    .chat-message-user {
-        background-color: #F1FAEE;
-        padding: 10px 15px;
-        border-radius: 18px 18px 18px 0;
-        margin-bottom: 10px;
-        display: inline-block;
-        max-width: 80%;
-        color: #000000;
-    }
-    
-    .chat-message-bot {
-        background-color: #e6f2ff;
-        padding: 10px 15px;
-        color: #000000;
-        border-radius: 18px 18px 0 18px;
-        margin-bottom: 10px;
-        margin-left: auto;
-        display: inline-block;
-        max-width: 80%;
-    }
-    
-    .chat-container {
+    /* ChatGPT-style chat container */
+    .chat-layout {
         display: flex;
         flex-direction: column;
+        height: auto; /* was 70vh */
+        min-height: 420px; /* reasonable minimum */
+        max-height: 70vh; /* cap on very tall screens */
+        border: 1px solid #2a2f33; /* darker to match dark theme */
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        background-color: #111418; /* dark background consistent with app */
+    }
+
+    .chat-container {
+        background-color: transparent; /* remove white */
+        padding: 0;
+        margin: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
     }
     
-    .user-container {
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 18px 20px 12px 20px;
         display: flex;
-        justify-content: flex-start;
-        margin-bottom: 15px;
+        flex-direction: column;
+        gap: 18px;
+        background: linear-gradient(180deg, #161b20 0%, #13171b 100%);
+        max-height: calc(70vh - 110px); /* allow scroll before growing too tall */
+    }
+
+    /* Standalone chat box (single-block, no empty wrappers) */
+    .chat-box {
+        background: linear-gradient(180deg, #161b20 0%, #13171b 100%);
+        padding: 18px 20px 12px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        border: 1px solid #2a2f33;
+        border-radius: 10px 10px 0 0;
+        max-height: 60vh;
+        overflow-y: auto;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     }
     
-    .bot-container {
+    /* Custom scrollbar for chat-box */
+    .chat-box::-webkit-scrollbar { width: 6px; }
+    .chat-box::-webkit-scrollbar-track { background: transparent; }
+    .chat-box::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
+    .chat-box::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+
+    .chat-message {
         display: flex;
-        justify-content: flex-end;
-        margin-bottom: 15px;
+        gap: 12px;
+        max-width: 100%;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    .chat-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+    
+    .user-avatar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .bot-avatar {
+        background: linear-gradient(135deg, #E63946 0%, #d62839 100%);
+    }
+    
+    .chat-message-content {
+        flex: 1;
+        padding: 14px 18px;
+        background: #1e242a;
+        border: 1px solid #2d343b;
+        border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+    
+    .chat-message-text { color: #e2e6ea; }
+    .chat-message-role { color: #89b4fa; }
+    
+    .chat-input-container {
+        border: 1px solid #2a2f33;
+        border-top: none;
+        padding: 14px 16px 16px 16px;
+        background-color: #161b20;
+        border-radius: 0 0 10px 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     }
     
     /* Question button styling */
@@ -181,6 +234,7 @@ st.markdown("""
         display: block;
         width: 100%;
         text-align: left;
+        font-weight: 500;
     }
     
     .question-button:hover {
@@ -191,6 +245,24 @@ st.markdown("""
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+
+    /* Remove default padding/margin of Streamlit markdown containers */
+    [data-testid="stMarkdownContainer"] {padding:0 !important; margin:0 !important;}
+    .stMarkdown {padding:0 !important; margin:0 !important;}
+    /* Tighten vertical space between consecutive markdown blocks */
+    [data-testid="stMarkdownContainer"] + [data-testid="stMarkdownContainer"] {margin-top:0 !important;}
+    /* Ensure chat layout not affected by markdown wrapper */
+    .chat-layout [data-testid="stMarkdownContainer"] {padding:0 !important; margin:0 !important;}
+
+    /* Tighten global layout spacing */
+    section.main > div.block-container { padding-top: 6px !important; padding-bottom: 6px !important; }
+    [data-testid="stVerticalBlock"] { padding: 0 !important; gap: 0.25rem !important; }
+    [data-testid="stHorizontalBlock"] { gap: 0.5rem !important; }
+    hr { margin: 6px 0 !important; }
+    .stTabs { margin-bottom: 0 !important; }
+    .stTabs [data-baseweb="tab-list"] { margin-bottom: 0 !important; }
+    .stMarkdown p { margin: 0 !important; }
+    .stButton button { margin-top: 0 !important; margin-bottom: 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -366,102 +438,137 @@ with tabs[0]:
 #---------------------------------#
 # Tab 2: Ask the Cardio
 with tabs[1]:
-    st.markdown('<h1 class="main-header">💬 Hỏi đáp Tim mạch</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">💬 Trợ lý Tim mạch AI</h1>', unsafe_allow_html=True)
     
+    # JavaScript for localStorage management
     st.markdown("""
-    <div class="info-card">
-        <h3 style="color:#1D3557;">Trợ lý AI về Tim mạch</h3>
-        <p style="color:#000000;">Nhận tư vấn chuyên gia về giải thích ECG, rối loạn nhịp tim và sức khỏe tim mạch. Trợ lý AI của chúng tôi có thể trả lời câu hỏi về các tình trạng tim mạch và mẫu ECG.</p>
-    </div>
+    <script>
+    // Function to save API key to localStorage
+    function saveApiKey(apiKey) {
+        if (apiKey && apiKey.trim() !== '') {
+            localStorage.setItem('gemini_api_key', apiKey);
+        }
+    }
+    
+    // Function to get API key from localStorage
+    function getApiKey() {
+        return localStorage.getItem('gemini_api_key') || '';
+    }
+    
+    // Function to save chat history to localStorage
+    function saveChatHistory(history) {
+        localStorage.setItem('chat_history', JSON.stringify(history));
+    }
+    
+    // Function to get chat history from localStorage
+    function getChatHistory() {
+        const history = localStorage.getItem('chat_history');
+        return history ? JSON.parse(history) : [];
+    }
+    
+    // Function to clear chat history
+    function clearChatHistory() {
+        localStorage.removeItem('chat_history');
+    }
+    
+    // Function to clear API key
+    function clearApiKey() {
+        localStorage.removeItem('gemini_api_key');
+    }
+    </script>
     """, unsafe_allow_html=True)
     
-    # Display a relevant image and the chat interface
-    col1, col2 = st.columns([1, 2])
+    # Initialize chat history
+    if "cardio_chat_history" not in st.session_state:
+        st.session_state.cardio_chat_history = []
+        
+    # Initialize a session state for the selected question
+    if "selected_cardio_question" not in st.session_state:
+        st.session_state.selected_cardio_question = ""
     
-    with col1:
-        st.image("https://api.iconify.design/openmoji/anatomical-heart.svg?width=300", use_container_width=True)
+    # Initialize session state for user's API key
+    if "user_gemini_api_key" not in st.session_state:
+        st.session_state.user_gemini_api_key = ""
     
-    with col2:
-        # Add Gemini AI integration
-        # Initialize chat history
-        if "cardio_chat_history" not in st.session_state:
-            st.session_state.cardio_chat_history = [
-                ("Trợ lý Tim mạch", "Xin chào! Tôi là trợ lý tim mạch của bạn. Tôi có thể trả lời câu hỏi về ECG, nhịp tim và sức khỏe tim mạch. Tôi có thể giúp gì cho bạn?")
-            ]
-            
-        # Initialize a session state for the selected question
-        if "selected_cardio_question" not in st.session_state:
-            st.session_state.selected_cardio_question = ""
-        
-        # Initialize session state for user's API key
-        if "user_gemini_api_key" not in st.session_state:
-            st.session_state.user_gemini_api_key = ""
-            
-        # API Key input section
-        st.markdown("### 🔑 Cấu hình API Key")
-        
-        # Show helpful banner if no API key
-        if not st.session_state.user_gemini_api_key:
-            st.info("""
-            💡 **Để sử dụng Trợ lý AI:**
-            1. Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
-            2. Click "Create API key" (miễn phí, không cần thẻ)
-            3. Copy và paste API key vào ô bên dưới
-            
-            📖 [Xem hướng dẫn chi tiết](https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)
-            """)
-        
-        with st.expander("📖 Hướng dẫn lấy API Key miễn phí", expanded=False):
-            st.markdown("""
-            **Bước 1:** Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
-            
-            **Bước 2:** Đăng nhập bằng tài khoản Google của bạn
-            
-            **Bước 3:** Click "Create API key" hoặc "Get API key"
-            
-            **Bước 4:** Chọn project hoặc tạo project mới
-            
-            **Bước 5:** Copy API key (bắt đầu bằng "AIza...")
-            
-            **Bước 6:** Paste API key vào ô bên dưới
-            
-            ⚠️ **Lưu ý:** API key hoàn toàn miễn phí với giới hạn sử dụng hợp lý. Không chia sẻ API key với người khác.
-            """)
-        
-        # User API key input
-        user_api_key_input = st.text_input(
-            "Nhập Gemini API Key của bạn:",
-            type="password",
-            value=st.session_state.user_gemini_api_key,
-            placeholder="AIzaSy...",
-            help="API key của bạn sẽ chỉ được lưu trong phiên làm việc này và không được chia sẻ"
-        )
-        
-        # Update session state when user enters API key
-        if user_api_key_input:
-            st.session_state.user_gemini_api_key = user_api_key_input
-            GEMINI_API_KEY = user_api_key_input
-            has_api_key = True
-            st.success("✅ API key đã được cấu hình! Bạn có thể bắt đầu hỏi câu hỏi.")
+    # Initialize chat loaded flag
+    if "chat_loaded_from_storage" not in st.session_state:
+        st.session_state.chat_loaded_from_storage = False
+    
+    # Initialize main input state for binding with text_input
+    if "cardio_assistant_query" not in st.session_state:
+        st.session_state.cardio_assistant_query = ""
+    if "auto_submit" not in st.session_state:
+        st.session_state.auto_submit = False
+    if "show_api_input" not in st.session_state:
+        st.session_state.show_api_input = False
+    if "reset_input" not in st.session_state:
+        st.session_state.reset_input = False
+    # Clear input BEFORE widget renders to avoid Streamlit restriction
+    if st.session_state.reset_input:
+        st.session_state.cardio_assistant_query = ""
+        st.session_state.reset_input = False
+    
+    # API Key input section - Compact at top
+    col_key1, col_key2, col_key3 = st.columns([5, 1, 1])
+    
+    with col_key1:
+        if st.session_state.user_gemini_api_key:
+            st.success("✅ API key đã được cấu hình")
         else:
-            # Try to load from secrets as fallback
-            try:
-                GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-                if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
-                    has_api_key = True
-                    st.info("ℹ️ Đang sử dụng API key từ cấu hình hệ thống.")
-                else:
-                    has_api_key = False
-                    st.warning("⚠️ Vui lòng nhập API key để sử dụng chatbot AI.")
-            except:
+            st.info("💡 Vui lòng nhập API key để sử dụng chatbot AI - [Lấy API key miễn phí](https://makersuite.google.com/app/apikey) · [Hướng dẫn chi tiết](https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)")
+    
+    with col_key2:
+        if st.session_state.user_gemini_api_key:
+            if st.button("🗑️", help="Xóa API key", use_container_width=True):
+                st.session_state.user_gemini_api_key = ""
+                st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
+                st.rerun()
+        else:
+            if st.button("🔑", help="Nhập API key", use_container_width=True):
+                st.session_state.show_api_input = True
+    
+    with col_key3:
+        # Help button opens guide in a new tab
+        if st.button("❓", help="Hướng dẫn lấy API key", use_container_width=True):
+            st.markdown("<script>window.open('https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md','_blank')</script>", unsafe_allow_html=True)
+    
+    # Show API input dialog if needed
+    if not st.session_state.user_gemini_api_key:
+        with st.expander("🔑 Cấu hình API Key", expanded=st.session_state.show_api_input):
+            user_api_key_input = st.text_input(
+                "Nhập Gemini API Key:",
+                type="password",
+                placeholder="AIzaSy...",
+                help="API key sẽ được lưu trên trình duyệt của bạn. Xem hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md"
+            )
+            st.markdown("- 👉 Tạo key tại Makersuite: https://makersuite.google.com/app/apikey")
+            st.markdown("- 📘 Hướng dẫn chi tiết (có hình): https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md")
+             
+            if user_api_key_input:
+                st.session_state.user_gemini_api_key = user_api_key_input
+                st.markdown(f'<script>saveApiKey("{user_api_key_input}");</script>', unsafe_allow_html=True)
+                st.session_state.show_api_input = False
+                st.rerun()
+    
+    # Set API key status
+    if st.session_state.user_gemini_api_key:
+        GEMINI_API_KEY = st.session_state.user_gemini_api_key
+        has_api_key = True
+    else:
+        try:
+            GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+            if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
+                has_api_key = True
+            else:
                 has_api_key = False
-                GEMINI_API_KEY = None
-                st.warning("⚠️ Vui lòng nhập API key để sử dụng chatbot AI.")
-        
-        st.markdown("---")
-        
-        # Function to generate responses about ECG and heart health
-        def generate_cardio_response(prompt):
+        except:
+            has_api_key = False
+            GEMINI_API_KEY = None
+    
+    st.markdown("---")
+    
+    # Function to generate responses about ECG and heart health
+    def generate_cardio_response(prompt):
             if has_api_key:
                 try:
                     # Configure Gemini API
@@ -507,12 +614,22 @@ with tabs[1]:
                     return response.text
                 except Exception as e:
                     error_msg = str(e)
-                    if "API_KEY_INVALID" in error_msg:
-                        return "❌ API key không hợp lệ. Vui lòng kiểm tra API key Gemini của bạn trong file .streamlit/secrets.toml. Bạn có thể lấy API key miễn phí tại: https://makersuite.google.com/app/apikey"
-                    elif "quota" in error_msg.lower():
+                    lower_msg = error_msg.lower()
+                    if "reported as leaked" in lower_msg or ("403" in lower_msg and "leak" in lower_msg):
+                        # Detected leaked key -> force user to re-enter
+                        st.session_state.user_gemini_api_key = ""
+                        st.session_state.show_api_input = True
+                        st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
+                        return "🔐 API key bị đánh dấu là bị lộ (403) và đã bị xóa. Vui lòng tạo key mới tại https://makersuite.google.com/app/apikey hoặc xem hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md"
+                    if "api_key_invalid" in lower_msg or "invalid api key" in lower_msg:
+                        st.session_state.user_gemini_api_key = ""
+                        st.session_state.show_api_input = True
+                        st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
+                        return "❌ API key không hợp lệ hoặc đã hết hạn. Vui lòng tạo API key mới: https://makersuite.google.com/app/apikey (Hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)"
+                    elif "quota" in lower_msg:
                         return "⚠️ Đã vượt quá giới hạn sử dụng API. Vui lòng kiểm tra quota của API key hoặc thử lại sau."
                     else:
-                        return f"❌ Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Chi tiết lỗi: {error_msg}. Vui lòng thử lại."
+                        return f"❌ Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Chi tiết lỗi: {error_msg}. Vui lòng thử lại hoặc nhập API key mới nếu vấn đề liên quan đến key."
             else:
                 # Dictionary of common ECG and cardiology questions and answers
                 cardio_knowledge = {
@@ -561,75 +678,149 @@ with tabs[1]:
                 
                 return response
             
-        # User input - note that we're using the session state value as the default
-        user_query = st.text_input("Đặt câu hỏi về giải thích ECG hoặc sức khỏe tim mạch:", 
-                                  value=st.session_state.selected_cardio_question,
-                                  key="cardio_assistant_query")
-        
-        # After the user submits a question, clear the selected_question
-        if st.button("Hỏi Trợ lý Tim mạch"):
-            if user_query:
-                with st.spinner("Trợ lý đang suy nghĩ..."):
-                    try:
-                        # Get the response
-                        response = generate_cardio_response(user_query)
-                        # Add to chat history
-                        st.session_state.cardio_chat_history.append(("Bạn", user_query))
-                        st.session_state.cardio_chat_history.append(("Trợ lý Tim mạch", response))
-                        # Clear the selected question after submission
-                        st.session_state.selected_cardio_question = ""
-                    except Exception as e:
-                        st.error(f"Lỗi khi tạo câu trả lời: {str(e)}")
-                        
-    # Display chat history in tablet-like response area
-    if "cardio_chat_history" in st.session_state and len(st.session_state.cardio_chat_history) > 0:
-        st.subheader("Cuộc trò chuyện với Trợ lý Tim mạch")
-        
-        # Create a tablet-like container for the conversation
-        with st.container():
-            st.markdown('<div class="tablet-response">', unsafe_allow_html=True)
-            
-            for i, (role, message) in enumerate(st.session_state.cardio_chat_history):
-                if role == "Bạn":
-                    st.markdown(f'<div class="user-container"><div class="chat-message-user"><strong>👨‍⚕️ {role}:</strong> {message}</div></div>', unsafe_allow_html=True)
-                else:
-                    # For the latest bot response, add the typewriter effect
-                    if i == len(st.session_state.cardio_chat_history) - 1 and role == "Trợ lý Tim mạch":
-                        st.markdown(f'<div class="bot-container"><div class="chat-message-bot"><strong>🫀 {role}:</strong> <span class="typewriter-text">{message}</span></div></div>', unsafe_allow_html=True)
-                    else:
-                        st.markdown(f'<div class="bot-container"><div class="chat-message-bot"><strong>🫀 {role}:</strong> {message}</div></div>', unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
+    # ChatGPT-style interface (render chat in a single HTML block to avoid empty wrappers)
+    messages_html_parts = []
+    messages_html_parts.append('<div class="chat-box" id="chat-messages">')
+    if len(st.session_state.cardio_chat_history) == 0:
+        messages_html_parts.append('''
+        <div class="chat-message">
+            <div class="chat-avatar bot-avatar">🫀</div>
+            <div class="chat-message-content">
+                <div class="chat-message-role">Trợ lý Tim mạch AI</div>
+                <div class="chat-message-text">
+                    Xin chào! Tôi là trợ lý tim mạch AI của bạn. Tôi có thể giúp bạn:<br><br>
+                    • Giải thích các mẫu ECG<br>
+                    • Trả lời câu hỏi về rối loạn nhịp tim<br>
+                    • Cung cấp thông tin về sức khỏe tim mạch<br><br>
+                    Bạn có câu hỏi gì cho tôi không?
+                </div>
+            </div>
+        </div>
+        ''')
+    else:
+        for role, message in st.session_state.cardio_chat_history:
+            if role == "Bạn":
+                messages_html_parts.append(f'''
+                <div class="chat-message">
+                    <div class="chat-avatar user-avatar">👨‍⚕️</div>
+                    <div class="chat-message-content">
+                        <div class="chat-message-role">Bạn</div>
+                        <div class="chat-message-text">{message}</div>
+                    </div>
+                </div>
+                ''')
+            else:
+                messages_html_parts.append(f'''
+                <div class="chat-message">
+                    <div class="chat-avatar bot-avatar">🫀</div>
+                    <div class="chat-message-content">
+                        <div class="chat-message-role">Trợ lý Tim mạch AI</div>
+                        <div class="chat-message-text">{message}</div>
+                    </div>
+                </div>
+                ''')
+    messages_html_parts.append('</div>')
+    st.markdown("".join(messages_html_parts), unsafe_allow_html=True)
+
+    # Auto-scroll to bottom
+    st.markdown("""
+    <script>
+        setTimeout(function() {
+            var chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }, 100);
+    </script>
+    """, unsafe_allow_html=True)
     
-    # Add some common questions as examples
-    st.markdown('<h3 class="section-header">Câu hỏi Thường gặp</h3>', unsafe_allow_html=True)
+    # Input area (no HTML wrapper to prevent empty container)
+    col_input1, col_input2, col_input3 = st.columns([6, 1, 1])
     
+    with col_input1:
+        user_query = st.text_input(
+            "Tin nhắn",
+            key="cardio_assistant_query",
+            placeholder="Nhắn tin cho Trợ lý Tim mạch AI...",
+            label_visibility="collapsed"
+        )
+    
+    with col_input2:
+        submit_button = st.button("➤ Gửi", use_container_width=True, type="primary")
+    
+    with col_input3:
+        clear_chat_button = st.button("🗑️ Xóa", use_container_width=True, help="Xóa lịch sử chat")
+        
+    # Handle clear chat
+    if clear_chat_button:
+        st.session_state.cardio_chat_history = []
+        st.markdown('<script>clearChatHistory();</script>', unsafe_allow_html=True)
+        st.rerun()
+
+    # Auto submit if triggered by suggestion button
+    if st.session_state.auto_submit and st.session_state.cardio_assistant_query:
+        submit_button = True  # force submission path
+        st.session_state.auto_submit = False
+        user_query = st.session_state.cardio_assistant_query
+
+    # Handle question submission
+    if submit_button and user_query:
+        with st.spinner("🤔 Đang suy nghĩ..."):
+            try:
+                # Get the response
+                response = generate_cardio_response(user_query)
+                # Add to chat history
+                st.session_state.cardio_chat_history.append(("Bạn", user_query))
+                st.session_state.cardio_chat_history.append(("Trợ lý Tim mạch", response))
+                
+                # Save chat history to localStorage
+                chat_json = json.dumps(st.session_state.cardio_chat_history, ensure_ascii=False)
+                chat_json_escaped = chat_json.replace("'", "\\'")
+                save_script = f"""
+                <script>
+                    localStorage.setItem('chat_history', '{chat_json_escaped}');
+                </script>
+                """
+                st.markdown(save_script, unsafe_allow_html=True)
+                
+                # Clear the input after submission (defer until next run)
+                st.session_state.selected_cardio_question = ""
+                st.session_state.reset_input = True
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Lỗi: {str(e)}")
+
+    # Quick questions
+    st.markdown("##### 💡 Hoặc thử các câu hỏi gợi ý")
+
     example_questions = [
         "ECG bình thường trông như thế nào?",
         "Làm thế nào để nhận biết rung nhĩ trên ECG?",
         "Nguyên nhân gây ST chênh lên trên ECG là gì?",
         "Khoảng QT là gì và tại sao nó quan trọng?",
-        "Blốc tim xuất hiện như thế nào trên ECG?"
     ]
     
-    # Create functions for handling button clicks
-    def set_cardio_question(question):
-        st.session_state.selected_cardio_question = question
-    
-    col1, col2 = st.columns(2)
+    def ask_example(question):
+        st.session_state.cardio_assistant_query = question
+        st.session_state.auto_submit = True
+        # ensure previous content removed next run if auto_submit triggers
+        st.session_state.reset_input = False
+
+    cols = st.columns(2)
     for i, question in enumerate(example_questions):
-        if i % 2 == 0:
-            with col1:
-                st.button(f"❓ {question}", key=f"cardio_q{i}", on_click=set_cardio_question, args=(question,))
-        else:
-            with col2:
-                st.button(f"❓ {question}", key=f"cardio_q{i}", on_click=set_cardio_question, args=(question,))
-    
+        with cols[i % 2]:
+            st.button(
+                f"💬 {question}", 
+                key=f"q_{i}", 
+                on_click=ask_example, 
+                args=(question,),
+                use_container_width=True
+            )
+
     # Disclaimer
-    st.markdown("---")
     st.markdown("""
-    <div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-top: 20px;'>
-        <p style='color: #721c24; margin: 0;'><strong>Lưu ý quan trọng:</strong> Trợ lý AI này chỉ cung cấp thông tin tham khảo và không thay thế cho tư vấn y tế chuyên nghiệp. Luôn tham khảo ý kiến bác sĩ để chẩn đoán và điều trị các tình trạng bệnh lý.</p>
+    <div style='background-color: #fff3cd; padding: 12px; border-radius: 6px; margin-top: 12px; border-left: 4px solid #ffc107;'>
+        <p style='color: #856404; margin: 0; font-size: 14px;'><strong>⚠️ Lưu ý:</strong> Trợ lý AI này chỉ cung cấp thông tin tham khảo. Luôn tham khảo ý kiến bác sĩ chuyên khoa để chẩn đoán và điều trị.</p>
     </div>
     """, unsafe_allow_html=True)
 

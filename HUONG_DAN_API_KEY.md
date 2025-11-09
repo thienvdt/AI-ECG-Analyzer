@@ -1,169 +1,102 @@
-# 🔑 Hướng dẫn Sử dụng Gemini API Key
+# 🔑 Hướng dẫn sử dụng Gemini API Key (cách mới khuyến nghị)
 
-## 📖 Giới thiệu
-
-Để sử dụng tính năng **Trợ lý AI Tim mạch**, bạn cần có một API key miễn phí từ Google Gemini. Đây là hướng dẫn chi tiết từng bước.
+Từ bản cập nhật 11/2025, ứng dụng hỗ trợ cấu hình API key trực tiếp trong giao diện, an toàn và nhanh chóng. Bạn không cần sửa file nếu dùng cách này.
 
 ---
 
-## 🎯 Cách lấy API Key miễn phí (5 phút)
+## 1) Tạo API key miễn phí (3–5 phút)
 
-### Bước 1: Truy cập Google AI Studio
+- Trang chính thức: https://aistudio.google.com/app/apikey  
+- Link cũ (vẫn hoạt động): https://makersuite.google.com/app/apikey
 
-Mở trình duyệt và truy cập: **https://makersuite.google.com/app/apikey**
-
-Hoặc: **https://aistudio.google.com/app/apikey**
-
-### Bước 2: Đăng nhập Google
-
-- Click vào nút **"Sign in"** hoặc **"Đăng nhập"**
-- Đăng nhập bằng tài khoản Google của bạn
-- Nếu chưa có tài khoản Google, tạo tài khoản miễn phí tại [accounts.google.com](https://accounts.google.com)
-
-### Bước 3: Tạo API Key
-
-1. Sau khi đăng nhập, bạn sẽ thấy trang **API Keys**
-2. Click nút **"Create API key"** hoặc **"Get API key"**
-3. Chọn một trong hai:
-   - **Create API key in new project** (Tạo API key trong project mới) - Khuyến nghị cho người mới
-   - **Create API key in existing project** (Tạo trong project có sẵn)
-4. Click **"Create API key"**
-
-### Bước 4: Copy API Key
-
-- API key sẽ hiển thị dạng: `AIzaSyC...` (khoảng 39 ký tự)
-- Click nút **"Copy"** để copy API key
-- **LƯU Ý:** Lưu API key ở nơi an toàn, vì bạn có thể không xem lại được sau này
+Các bước:
+1. Đăng nhập tài khoản Google (Sign in).
+2. Ở mục API keys, bấm Create API key hoặc Get API key.
+3. Chọn “Create API key in new project” (khuyến nghị) và xác nhận.
+4. Copy API key (bắt đầu bằng AIza...). Hãy giữ kín API key của bạn.
 
 ---
 
-## 💻 Cách sử dụng API Key trong ứng dụng
+## 2) Cấu hình API key trực tiếp trong ứng dụng (UI)
 
-### Cách 1: Nhập trực tiếp trên giao diện (Khuyến nghị)
+1. Mở ứng dụng ECG Analyzer, chuyển sang tab “💬 Hỏi đáp Tim mạch”.
+2. Ở thanh trên cùng của tab:
+   - Bấm nút 🔑 để mở ô nhập API key, hoặc
+   - Bấm nút ❓ để mở trang hướng dẫn này (mở tab mới).
+3. Mở phần “🔑 Cấu hình API Key”, dán API key vào ô “Nhập Gemini API Key:”.
+4. Sau khi nhập, ứng dụng hiển thị ✅ “API key đã được cấu hình”. Bạn có thể bắt đầu chat.
 
-1. Mở ứng dụng ECG Analyzer
-2. Chuyển sang tab **"💬 Hỏi đáp Tim mạch"**
-3. Tìm phần **"🔑 Cấu hình API Key"**
-4. Nhấn vào **"📖 Hướng dẫn lấy API Key miễn phí"** để xem hướng dẫn
-5. Paste API key vào ô **"Nhập Gemini API Key của bạn"**
-6. Khi thấy thông báo ✅ "API key đã được cấu hình!", bạn đã sẵn sàng!
+Ghi chú an toàn:
+- API key được lưu cục bộ trong trình duyệt của bạn (localStorage). Ứng dụng không gửi key đi nơi khác ngoài Google.
+- Bạn có thể xóa key bất kỳ lúc nào bằng nút 🗑️ ở góc phải thanh cấu hình.
 
-**Ưu điểm:**
-- ✅ Dễ dàng, không cần chỉnh sửa file
-- ✅ Mỗi người dùng có thể dùng API key riêng
-- ✅ API key chỉ lưu trong phiên làm việc hiện tại
+---
 
-### Cách 2: Cấu hình trong file (Cho admin/developer)
+## 3) Xoá/Đổi API key
 
-Nếu bạn muốn cấu hình API key cố định cho toàn bộ ứng dụng:
+- Bấm 🗑️ để xóa key hiện tại (key trên trình duyệt cũng bị xóa).
+- Bấm 🔑 để nhập key mới và dán giá trị bạn vừa tạo từ AI Studio.
 
-1. Mở file `.streamlit/secrets.toml`
-2. Thay đổi dòng:
+---
+
+## 4) Ứng dụng tự phát hiện lỗi API key và cách khắc phục
+
+Ứng dụng đã tích hợp bắt lỗi và hướng dẫn trực tiếp:
+
+- 403 Your API key was reported as leaked
+  - Ứng dụng tự động xoá key khỏi phiên và mở ô nhập.
+  - Cách khắc phục: Tạo API key mới tại https://aistudio.google.com/app/apikey rồi dán lại. Tránh chia sẻ công khai.
+
+- API key not valid / invalid API key
+  - Key sai hoặc hết hiệu lực. Hãy tạo key mới và nhập lại.
+
+- Quota exceeded
+  - Đã vượt giới hạn dùng miễn phí. Hãy chờ reset (thường theo ngày) hoặc dùng tài khoản Google khác để tạo key mới.
+
+Mẹo: Nếu bạn dán key nhưng vẫn lỗi, hãy xoá khoảng trắng thừa, chắc chắn copy đủ toàn bộ ký tự và thử lại.
+
+---
+
+## 5) Cách cũ (tuỳ chọn cho quản trị viên/dev): cấu hình qua file secrets
+
+Bạn vẫn có thể cấu hình key dùng chung cho server:
+
+1. Tạo file `.streamlit/secrets.toml` (nếu chưa có).
+2. Thêm:
    ```toml
    GEMINI_API_KEY = "YOUR_API_KEY_HERE"
    ```
-   Thành:
-   ```toml
-   GEMINI_API_KEY = "AIzaSyC_your_actual_api_key_here"
-   ```
-3. Lưu file và khởi động lại ứng dụng
+3. Khởi động lại ứng dụng.
+
+Lưu ý:
+- Khi có cả key trong `secrets` và key người dùng nhập trên giao diện, ứng dụng ưu tiên key người dùng.
+- Trên môi trường deploy, hãy quản lý secrets qua cơ chế bảo mật của nền tảng (không commit lên Git).
 
 ---
 
-## ❓ Câu hỏi thường gặp
+## 6) Câu hỏi thường gặp (FAQ)
 
-### 1. API key có mất phí không?
+- API key có mất phí?  
+  Không. Google cung cấp hạn mức miễn phí phù hợp cho sử dụng cá nhân/thử nghiệm.
 
-**Không!** API key hoàn toàn miễn phí với giới hạn sử dụng hợp lý:
-- Khoảng 60 request/phút
-- Khoảng 1,500 request/ngày
+- API key có hết hạn?  
+  Không có hạn cứng, nhưng chính sách có thể thay đổi. Bạn có thể thu hồi/đổi key bất cứ lúc nào.
 
-Đối với sử dụng cá nhân, giới hạn này là đủ.
+- Tôi muốn xoá toàn bộ dấu vết key và lịch sử chat?  
+  Bấm 🗑️ để xoá key. Với lịch sử chat, dùng nút “🗑️ Xóa” trong khu vực chat.
 
-### 2. API key có hết hạn không?
-
-Không, API key không có thời hạn. Tuy nhiên, Google có thể thay đổi chính sách trong tương lai.
-
-### 3. API key của tôi có an toàn không?
-
-- ✅ Khi nhập trực tiếp trên giao diện, API key chỉ được lưu trong phiên làm việc của bạn
-- ✅ Ứng dụng không gửi API key đến bất kỳ server nào khác ngoài Google
-- ⚠️ Tuy nhiên, **không chia sẻ API key** với người khác
-
-### 4. Tôi không thấy API key sau khi tạo?
-
-Truy cập lại: https://makersuite.google.com/app/apikey
-- Bạn sẽ thấy danh sách API keys đã tạo
-- Nếu cần, tạo API key mới
-
-### 5. Lỗi "API key not valid"?
-
-**Nguyên nhân:**
-- API key sai hoặc có khoảng trắng thừa
-- API key chưa được kích hoạt (chờ vài phút)
-- API key đã bị vô hiệu hóa
-
-**Giải pháp:**
-- Kiểm tra lại API key (copy đầy đủ, không có khoảng trắng)
-- Tạo API key mới
-- Thử lại sau vài phút
-
-### 6. Lỗi "quota exceeded"?
-
-Bạn đã vượt quá giới hạn sử dụng miễn phí:
-- Chờ đến ngày hôm sau để quota reset
-- Hoặc tạo API key mới với tài khoản Google khác
-
-### 7. Chatbot không trả lời?
-
-**Kiểm tra:**
-1. ✅ Đã nhập API key chưa?
-2. ✅ Có thông báo lỗi nào không?
-3. ✅ Kết nối internet ổn định không?
-
-Nếu vẫn lỗi, tạo API key mới.
+- Vì sao nên dùng cách mới qua giao diện?  
+  Không cần sửa file, mỗi người dùng có key riêng, nhanh và an toàn (lưu cục bộ trên trình duyệt).
 
 ---
 
-## 🔒 Bảo mật API Key
+## 7) Thực hành bảo mật cơ bản
 
-### ✅ NÊN:
-- Giữ API key cho riêng bạn
-- Sử dụng API key cho mục đích cá nhân
-- Tạo API key mới nếu nghi ngờ bị lộ
-
-### ❌ KHÔNG NÊN:
-- Chia sẻ API key trên mạng xã hội
-- Commit API key lên GitHub/GitLab
-- Chia sẻ API key với người lạ
+- Không chia sẻ API key công khai hoặc commit lên Git.
+- Thu hồi và tạo key mới nếu nghi ngờ bị lộ (ứng dụng sẽ cảnh báo và yêu cầu bạn nhập key mới nếu phát hiện vấn đề).
+- Dùng key riêng cho từng người dùng/từng ứng dụng khi có thể.
 
 ---
 
-## 📞 Hỗ trợ
-
-Nếu gặp vấn đề:
-
-1. **Đọc lại hướng dẫn** - Hầu hết vấn đề đều được giải quyết ở phần FAQ
-2. **Tạo API key mới** - Đây là cách nhanh nhất khắc phục lỗi
-3. **Kiểm tra kết nối internet** - Đảm bảo kết nối ổn định
-4. **Liên hệ hỗ trợ** - Tạo issue trên GitHub repository
-
----
-
-## 🎓 Video hướng dẫn
-
-*(Tùy chọn: Bạn có thể thêm link video hướng dẫn ở đây)*
-
----
-
-## 📚 Tài liệu tham khảo
-
-- [Google AI Studio](https://aistudio.google.com/)
-- [Gemini API Documentation](https://ai.google.dev/docs)
-- [API Key Best Practices](https://support.google.com/googleapi/answer/6310037)
-
----
-
-**Cập nhật:** Tháng 11, 2025
-
-**Made with ❤️ for Healthcare AI**
+Cập nhật: 11/2025  
+Made with ❤️ for Healthcare AI
