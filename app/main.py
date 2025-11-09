@@ -1,9 +1,5 @@
+from tensorflow.keras.models import load_model
 import streamlit as st
-# Safe import for load_model supports both tensorflow.keras and standalone keras
-try:
-    from tensorflow.keras.models import load_model
-except Exception:  # fallback if TensorFlow isn't available in the editor env
-    from keras.models import load_model
 from streamlit.components.v1 import html
 import numpy as np
 import scipy.io
@@ -494,7 +490,7 @@ with tabs[1]:
                 "Nhập Gemini API Key:",
                 type="password",
                 placeholder="AIzaSy...",
-                help="Key chỉ lưu trong phiên (session), không lưu trình duyệt. Có thể cấu hình lâu dài trong .streamlit/secrets.toml hoặc biến môi trường GEMINI_API_KEY."
+                help="Key chỉ lưu trong phiên (session), không lưu trên trình duyệt. Có thể cấu hình lâu dài trong .streamlit/secrets.toml hoặc biến môi trường GEMINI_API_KEY."
             )
             st.markdown("- 👉 Tạo key tại Makersuite: https://makersuite.google.com/app/apikey")
             st.markdown("- 📘 Hướng dẫn chi tiết (có hình): https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md")
