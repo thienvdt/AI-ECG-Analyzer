@@ -1,0 +1,36 @@
+substitutions:
+  _AR_REGION: "asia-southeast1"
+  _AR_REPO: "app-repo"
+  _IMAGE_NAME: "asb-ml-app"
+  _SERVICE_NAME: "asb-ml-app"
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build','-t','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA','.']
+
+  - name: gcr.io/cloud-builders/docker
+    args: ['push','${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA']
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    # 👉 use secretEnv (not env) to pull the secret into this step as _GEMINI_API_KEY
+    secretEnv: ['_GEMINI_API_KEY']
+    args:
+      - -c
+      - |
+        # map to a normal var for convenience
+        export GEMINI_API_KEY="$_GEMINI_API_KEY"
+        gcloud run deploy ${_SERVICE_NAME} \
+          --image ${_AR_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA \
+          --region ${_AR_REGION} --platform managed --allow-unauthenticated \
+          --memory 2Gi --cpu 2 --timeout 600 --concurrency 5 \
+          --set-env-vars GEMINI_API_KEY=$$GEMINI_API_KEY
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/gemini-api-key/versions/latest
+      env: '_GEMINI_API_KEY'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1200s
