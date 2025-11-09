@@ -1,13 +1,18 @@
 import streamlit as st
+# Safe import for load_model supports both tensorflow.keras and standalone keras
+try:
+    from tensorflow.keras.models import load_model
+except Exception:  # fallback if TensorFlow isn't available in the editor env
+    from keras.models import load_model
 from streamlit.components.v1 import html
-from tensorflow.keras.models import load_model
 import numpy as np
 import scipy.io
 from src.visualization import plot_ecg
 import google.generativeai as genai  # For the Gemini integration
 import json
+import html as html_lib  # for escaping user/assistant messages
 
-#---------------------------------#
+# ---------------------------------#
 # Page layout
 ## Page expands to full width
 st.set_page_config(
@@ -20,30 +25,13 @@ st.set_page_config(
 #---------------------------------#
 # Helper functions for localStorage
 
-def get_from_local_storage(key, default_value=""):
-    """Get value from localStorage using JavaScript"""
-    get_storage_script = f"""
-    <script>
-        var value = localStorage.getItem('{key}');
-        if (value) {{
-            window.parent.postMessage({{type: 'streamlit:setComponentValue', value: value}}, '*');
-        }}
-    </script>
-    """
-    result = html(get_storage_script, height=0)
-    return result if result else default_value
+# Remove legacy get_from_local_storage/save_to_local_storage helpers (no longer used)
 
-def save_to_local_storage(key, value):
-    """Save value to localStorage using JavaScript"""
-    # Escape quotes in value
-    safe_value = str(value).replace('"', '\\"').replace("'", "\\'")
-    save_storage_script = f"""
-    <script>
-        localStorage.setItem('{key}', '{safe_value}');
-    </script>
-    """
-    html(save_storage_script, height=0)
+# Utility: escape HTML in chat messages
+def escape_html(text: str) -> str:
+    return html_lib.escape(str(text), quote=True)
 
+#---------------------------------#
 # Custom CSS for beautification
 st.markdown("""
 <style>
@@ -231,7 +219,7 @@ st.markdown("""
         margin-bottom: 10px;
         cursor: pointer;
         transition: all 0.3s ease;
-        display: block;
+        display: block; /* added semicolon */
         width: 100%;
         text-align: left;
         font-weight: 500;
@@ -440,53 +428,21 @@ with tabs[0]:
 with tabs[1]:
     st.markdown('<h1 class="main-header">💬 Trợ lý Tim mạch AI</h1>', unsafe_allow_html=True)
     
-    # JavaScript for localStorage management
+    # JavaScript for localStorage (chat history only). Also clear any old API key from previous versions.
     st.markdown("""
     <script>
-    // Function to save API key to localStorage
-    function saveApiKey(apiKey) {
-        if (apiKey && apiKey.trim() !== '') {
-            localStorage.setItem('gemini_api_key', apiKey);
-        }
-    }
-    
-    // Function to get API key from localStorage
-    function getApiKey() {
-        return localStorage.getItem('gemini_api_key') || '';
-    }
-    
-    // Function to save chat history to localStorage
-    function saveChatHistory(history) {
-        localStorage.setItem('chat_history', JSON.stringify(history));
-    }
-    
-    // Function to get chat history from localStorage
-    function getChatHistory() {
-        const history = localStorage.getItem('chat_history');
-        return history ? JSON.parse(history) : [];
-    }
-    
-    // Function to clear chat history
-    function clearChatHistory() {
-        localStorage.removeItem('chat_history');
-    }
-    
-    // Function to clear API key
-    function clearApiKey() {
-        localStorage.removeItem('gemini_api_key');
-    }
+      function saveChatHistory(history){localStorage.setItem('chat_history', JSON.stringify(history));}
+      function getChatHistory(){const h=localStorage.getItem('chat_history');return h?JSON.parse(h):[];}
+      function clearChatHistory(){localStorage.removeItem('chat_history');}
+      try{localStorage.removeItem('gemini_api_key');}catch(e){}
     </script>
     """, unsafe_allow_html=True)
     
     # Initialize chat history
     if "cardio_chat_history" not in st.session_state:
         st.session_state.cardio_chat_history = []
-        
-    # Initialize a session state for the selected question
-    if "selected_cardio_question" not in st.session_state:
-        st.session_state.selected_cardio_question = ""
-    
-    # Initialize session state for user's API key
+
+    # Remove unused selected_cardio_question state
     if "user_gemini_api_key" not in st.session_state:
         st.session_state.user_gemini_api_key = ""
     
@@ -513,15 +469,14 @@ with tabs[1]:
     
     with col_key1:
         if st.session_state.user_gemini_api_key:
-            st.success("✅ API key đã được cấu hình")
+            st.success("✅ API key đã nhập (chỉ lưu trong phiên, không lưu trình duyệt)")
         else:
-            st.info("💡 Vui lòng nhập API key để sử dụng chatbot AI - [Lấy API key miễn phí](https://makersuite.google.com/app/apikey) · [Hướng dẫn chi tiết](https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)")
+            st.info("🔐 Nhập API key để dùng chatbot. Key KHÔNG lưu vào localStorage. Có thể cấu hình lâu dài trong .streamlit/secrets.toml hoặc biến môi trường GEMINI_API_KEY.")
     
     with col_key2:
         if st.session_state.user_gemini_api_key:
-            if st.button("🗑️", help="Xóa API key", use_container_width=True):
+            if st.button("🗑️", help="Xóa API key phiên", use_container_width=True):
                 st.session_state.user_gemini_api_key = ""
-                st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
                 st.rerun()
         else:
             if st.button("🔑", help="Nhập API key", use_container_width=True):
@@ -539,14 +494,13 @@ with tabs[1]:
                 "Nhập Gemini API Key:",
                 type="password",
                 placeholder="AIzaSy...",
-                help="API key sẽ được lưu trên trình duyệt của bạn. Xem hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md"
+                help="Key chỉ lưu trong phiên (session), không lưu trình duyệt. Có thể cấu hình lâu dài trong .streamlit/secrets.toml hoặc biến môi trường GEMINI_API_KEY."
             )
             st.markdown("- 👉 Tạo key tại Makersuite: https://makersuite.google.com/app/apikey")
             st.markdown("- 📘 Hướng dẫn chi tiết (có hình): https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md")
              
             if user_api_key_input:
-                st.session_state.user_gemini_api_key = user_api_key_input
-                st.markdown(f'<script>saveApiKey("{user_api_key_input}");</script>', unsafe_allow_html=True)
+                st.session_state.user_gemini_api_key = user_api_key_input  # keep only in session
                 st.session_state.show_api_input = False
                 st.rerun()
     
@@ -571,35 +525,29 @@ with tabs[1]:
     def generate_cardio_response(prompt):
             if has_api_key:
                 try:
-                    # Configure Gemini API
                     genai.configure(api_key=GEMINI_API_KEY)
-                    
                     gemini_prompt = f"""
-                    Bạn là trợ lý tim mạch chuyên về giải thích ECG, rối loạn nhịp tim và sức khỏe tim mạch.
-                    Chỉ trả lời các câu hỏi liên quan đến tim mạch và ECG với thông tin y tế chính xác.
-                    Nếu câu hỏi không liên quan đến tim mạch, hãy lịch sự thông báo rằng bạn chỉ có thể trả lời 
-                    các câu hỏi về tim và ECG.
-                    
-                    Đặc biệt tập trung vào các tình trạng và mẫu ECG sau:
-                    - Nhịp xoang bình thường
-                    - Rung nhĩ (Atrial Fibrillation)
-                    - Cuồng nhĩ (Atrial Flutter)
-                    - Nhịp nhanh thất
-                    - Kéo dài khoảng QT
-                    - ST chênh lên và chênh xuống
-                    - Blốc tim (độ 1, độ 2, độ 3)
-                    - Blốc nhánh bó
-                    - Co thắt thất sớm
-                    - Co thắt nhĩ sớm
-                    - Vị trí chuyển đạo và giải thích ECG
-                    
-                    **Câu hỏi của người dùng:** {prompt}
-                    Hãy cung cấp câu trả lời rõ ràng, ngắn gọn và chính xác bằng tiếng Việt về tim mạch và giải thích ECG.
-                    """
-                    
-                    # Try different model names in order of preference
+Bạn là trợ lý tim mạch chuyên về giải thích ECG, rối loạn nhịp tim và sức khỏe tim mạch.
+Chỉ trả lời các câu hỏi liên quan đến tim mạch và ECG với thông tin y tế chính xác.
+Nếu câu hỏi không liên quan đến tim mạch, hãy lịch sự thông báo rằng bạn chỉ có thể trả lời các câu hỏi về tim và ECG.
+
+Đặc biệt tập trung vào các tình trạng và mẫu ECG sau:
+- Nhịp xoang bình thường
+- Rung nhĩ (Atrial Fibrillation)
+- Cuồng nhĩ (Atrial Flutter)
+- Nhịp nhanh thất
+- Kéo dài khoảng QT
+- ST chênh lên và chênh xuống
+- Blốc tim (độ 1, độ 2, độ 3)
+- Blốc nhánh bó
+- Co thắt thất sớm
+- Co thắt nhĩ sớm
+- Vị trí chuyển đạo và giải thích ECG
+
+**Câu hỏi của người dùng:** {prompt}
+Hãy cung cấp câu trả lời rõ ràng, ngắn gọn và chính xác bằng tiếng Việt về tim mạch và giải thích ECG.
+"""
                     model_names = ["gemini-pro-latest", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-1.0-pro"]
-                    
                     for model_name in model_names:
                         try:
                             model = genai.GenerativeModel(model_name)
@@ -607,40 +555,30 @@ with tabs[1]:
                             break
                         except Exception as model_error:
                             if "not found" in str(model_error) and model_name != model_names[-1]:
-                                continue  # Try next model
+                                continue
                             else:
-                                raise model_error  # Re-raise if it's the last model or different error
-                    
+                                raise model_error
                     return response.text
                 except Exception as e:
                     error_msg = str(e)
                     lower_msg = error_msg.lower()
                     if "reported as leaked" in lower_msg or ("403" in lower_msg and "leak" in lower_msg):
-                        # Detected leaked key -> force user to re-enter
                         st.session_state.user_gemini_api_key = ""
                         st.session_state.show_api_input = True
-                        st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
-                        return "🔐 API key bị đánh dấu là bị lộ (403) và đã bị xóa. Vui lòng tạo key mới tại https://makersuite.google.com/app/apikey hoặc xem hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md"
+                        return "🔐 API key bị đánh dấu là lộ (403) và đã được xóa khỏi phiên. Nhập key mới hoặc cấu hình trong secrets.toml."
                     if "api_key_invalid" in lower_msg or "invalid api key" in lower_msg:
                         st.session_state.user_gemini_api_key = ""
                         st.session_state.show_api_input = True
-                        st.markdown('<script>clearApiKey();</script>', unsafe_allow_html=True)
-                        return "❌ API key không hợp lệ hoặc đã hết hạn. Vui lòng tạo API key mới: https://makersuite.google.com/app/apikey (Hướng dẫn: https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)"
-                    elif "quota" in lower_msg:
-                        return "⚠️ Đã vượt quá giới hạn sử dụng API. Vui lòng kiểm tra quota của API key hoặc thử lại sau."
-                    else:
-                        return f"❌ Xin lỗi, tôi gặp lỗi khi xử lý câu hỏi của bạn. Chi tiết lỗi: {error_msg}. Vui lòng thử lại hoặc nhập API key mới nếu vấn đề liên quan đến key."
+                        return "❌ API key không hợp lệ/hết hạn. Nhập key mới hoặc thêm vào secrets.toml."
+                    if "quota" in lower_msg:
+                        return "⚠️ Đã vượt quá giới hạn sử dụng API. Vui lòng kiểm tra quota hoặc thử lại sau."
+                    return f"❌ Lỗi: {error_msg}"
             else:
-                # Dictionary of common ECG and cardiology questions and answers
                 cardio_knowledge = {
                     "atrial fibrillation": "Atrial fibrillation (AFib) is an irregular and often rapid heart rhythm that can increase risk of stroke, heart failure, and other heart-related complications. On an ECG, it's characterized by irregular R-R intervals and absence of P waves.",
                     "normal ecg": "A normal ECG typically shows regular rhythm with P waves, QRS complexes, and T waves in sequence. The P-R interval is usually 0.12-0.20 seconds, QRS duration 0.06-0.10 seconds, and Q-T interval 0.36-0.44 seconds.",
                     "heart rate": "Normal resting heart rate for adults ranges from 60-100 beats per minute (BPM). Athletes may have lower resting heart rates, sometimes as low as 40 BPM, which is usually not a concern.",
                     "ecg leads": "A standard 12-lead ECG uses electrodes placed on the limbs and chest to record electrical activity from different angles. These include leads I, II, III, aVR, aVL, aVF (limb leads) and V1-V6 (chest leads).",
-                    "qt interval": "The QT interval represents ventricular depolarization and repolarization. A prolonged QT interval can indicate a risk for potentially dangerous arrhythmias like torsades de pointes.",
-                    "st elevation": "ST elevation on an ECG often indicates myocardial injury or infarction (heart attack). It represents damage to heart muscle and requires immediate medical attention.",
-                    "ecg interpretation": "ECG interpretation involves analyzing the regularity of rhythm, heart rate, P waves, PR interval, QRS complex, T waves, QT interval, and looking for any abnormal patterns or changes.",
-                    "heart block": "Heart blocks occur when electrical signals between the atria and ventricles are delayed or blocked. They can be first-degree (PR prolongation), second-degree (intermittent blocking), or third-degree (complete block).",
                     "premature beats": "Premature beats can be atrial (PACs) or ventricular (PVCs). They appear as early beats on the ECG and are usually benign but can sometimes indicate underlying heart disease.",
                     "ventricular tachycardia": "Ventricular tachycardia is a rapid heart rhythm starting in the ventricles. On ECG, it appears as wide QRS complexes at a rate typically >100 BPM. It can be life-threatening and requires immediate treatment.",
                     "heart": "The heart is a muscular organ responsible for pumping blood throughout your body. An ECG records the electrical activity of your heart and helps detect various heart conditions like arrhythmias, heart attacks, and structural abnormalities.",
@@ -656,26 +594,17 @@ with tabs[1]:
                 }
                 
                 response = "Tôi không có thông tin cụ thể về điều đó trong cơ sở kiến thức tim mạch của mình. Vui lòng hỏi điều gì đó liên quan đến ECG hoặc tình trạng tim mạch."
-                
-                # Simple keyword matching - support both Vietnamese and English
                 prompt_lower = prompt.lower()
                 for keyword, info in cardio_knowledge.items():
                     if keyword.lower() in prompt_lower:
                         response = info
                         break
-                
-                # General queries about ECG (Vietnamese)
                 if any(word in prompt_lower for word in ["ecg là gì", "điện tim đồ", "điện tâm đồ"]):
-                    response = cardio_knowledge["ecg"]
-                
-                # Queries about rhythm disorders (Vietnamese)
+                    response = cardio_knowledge.get("ecg", response)
                 if any(word in prompt_lower for word in ["rối loạn nhịp", "loạn nhịp tim", "arrhythmia"]):
-                    response = cardio_knowledge["arrhythmia"]
-                
-                # Atrial fibrillation (Vietnamese)
+                    response = cardio_knowledge.get("arrhythmia", response)
                 if any(word in prompt_lower for word in ["rung nhĩ", "atrial fibrillation"]):
-                    response = cardio_knowledge["atrial fibrillation"]
-                
+                    response = cardio_knowledge.get("atrial fibrillation", response)
                 return response
             
     # ChatGPT-style interface (render chat in a single HTML block to avoid empty wrappers)
@@ -699,13 +628,14 @@ with tabs[1]:
         ''')
     else:
         for role, message in st.session_state.cardio_chat_history:
+            safe_message = escape_html(message).replace('\n', '<br>')
             if role == "Bạn":
                 messages_html_parts.append(f'''
                 <div class="chat-message">
                     <div class="chat-avatar user-avatar">👨‍⚕️</div>
                     <div class="chat-message-content">
                         <div class="chat-message-role">Bạn</div>
-                        <div class="chat-message-text">{message}</div>
+                        <div class="chat-message-text">{safe_message}</div>
                     </div>
                 </div>
                 ''')
@@ -715,7 +645,7 @@ with tabs[1]:
                     <div class="chat-avatar bot-avatar">🫀</div>
                     <div class="chat-message-content">
                         <div class="chat-message-role">Trợ lý Tim mạch AI</div>
-                        <div class="chat-message-text">{message}</div>
+                        <div class="chat-message-text">{safe_message}</div>
                     </div>
                 </div>
                 ''')
@@ -767,13 +697,9 @@ with tabs[1]:
     if submit_button and user_query:
         with st.spinner("🤔 Đang suy nghĩ..."):
             try:
-                # Get the response
                 response = generate_cardio_response(user_query)
-                # Add to chat history
                 st.session_state.cardio_chat_history.append(("Bạn", user_query))
                 st.session_state.cardio_chat_history.append(("Trợ lý Tim mạch", response))
-                
-                # Save chat history to localStorage
                 chat_json = json.dumps(st.session_state.cardio_chat_history, ensure_ascii=False)
                 chat_json_escaped = chat_json.replace("'", "\\'")
                 save_script = f"""
@@ -782,9 +708,6 @@ with tabs[1]:
                 </script>
                 """
                 st.markdown(save_script, unsafe_allow_html=True)
-                
-                # Clear the input after submission (defer until next run)
-                st.session_state.selected_cardio_question = ""
                 st.session_state.reset_input = True
                 st.rerun()
             except Exception as e:
