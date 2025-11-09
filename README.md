@@ -69,17 +69,18 @@ pip install tensorflow-macos==2.15.0
 pip install tensorflow-metal==1.1.0
 ```
 
-### 4. Cấu hình API Key (Tùy chọn)
+### 4. Cấu hình API Key cho Chatbot AI (Tùy chọn)
 
-Để sử dụng chatbot AI:
+**Cách dễ nhất:** Nhập API key trực tiếp trên giao diện
 
 1. Lấy API key miễn phí tại: https://makersuite.google.com/app/apikey
-2. Sửa file `.streamlit/secrets.toml` và thêm API key:
-```toml
-GEMINI_API_KEY = "your-api-key-here"
-```
+2. Mở ứng dụng và chuyển sang tab **"💬 Hỏi đáp Tim mạch"**
+3. Nhập API key vào ô **"🔑 Cấu hình API Key"**
+4. Bắt đầu sử dụng chatbot!
 
-**Chi tiết:** Xem file [GEMINI_API_SETUP.md](GEMINI_API_SETUP.md) để biết hướng dẫn đầy đủ.
+**Hướng dẫn chi tiết:** Xem file [HUONG_DAN_API_KEY.md](HUONG_DAN_API_KEY.md)
+
+**Lưu ý:** Ứng dụng vẫn hoạt động bình thường cho phân loại ECG mà không cần API key. Chỉ cần API key để sử dụng tính năng chatbot AI.
 
 ## 🎮 Sử dụng
 

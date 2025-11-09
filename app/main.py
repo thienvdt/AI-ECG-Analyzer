@@ -392,21 +392,73 @@ with tabs[1]:
         # Initialize a session state for the selected question
         if "selected_cardio_question" not in st.session_state:
             st.session_state.selected_cardio_question = ""
+        
+        # Initialize session state for user's API key
+        if "user_gemini_api_key" not in st.session_state:
+            st.session_state.user_gemini_api_key = ""
             
-        # Load API Key from Streamlit secrets
-        try:
-            GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-            if not GEMINI_API_KEY or GEMINI_API_KEY == "YOUR_API_KEY_HERE":
-                st.error("⚠️ Thiếu API key hợp lệ! Vui lòng thêm Gemini API key vào file .streamlit/secrets.toml")
-                st.info("🔑 Để lấy API key miễn phí: https://makersuite.google.com/app/apikey")
+        # API Key input section
+        st.markdown("### 🔑 Cấu hình API Key")
+        
+        # Show helpful banner if no API key
+        if not st.session_state.user_gemini_api_key:
+            st.info("""
+            💡 **Để sử dụng Trợ lý AI:**
+            1. Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
+            2. Click "Create API key" (miễn phí, không cần thẻ)
+            3. Copy và paste API key vào ô bên dưới
+            
+            📖 [Xem hướng dẫn chi tiết](https://github.com/thienvdt/AI-ECG-Analyzer/blob/main/HUONG_DAN_API_KEY.md)
+            """)
+        
+        with st.expander("📖 Hướng dẫn lấy API Key miễn phí", expanded=False):
+            st.markdown("""
+            **Bước 1:** Truy cập [Google AI Studio](https://makersuite.google.com/app/apikey)
+            
+            **Bước 2:** Đăng nhập bằng tài khoản Google của bạn
+            
+            **Bước 3:** Click "Create API key" hoặc "Get API key"
+            
+            **Bước 4:** Chọn project hoặc tạo project mới
+            
+            **Bước 5:** Copy API key (bắt đầu bằng "AIza...")
+            
+            **Bước 6:** Paste API key vào ô bên dưới
+            
+            ⚠️ **Lưu ý:** API key hoàn toàn miễn phí với giới hạn sử dụng hợp lý. Không chia sẻ API key với người khác.
+            """)
+        
+        # User API key input
+        user_api_key_input = st.text_input(
+            "Nhập Gemini API Key của bạn:",
+            type="password",
+            value=st.session_state.user_gemini_api_key,
+            placeholder="AIzaSy...",
+            help="API key của bạn sẽ chỉ được lưu trong phiên làm việc này và không được chia sẻ"
+        )
+        
+        # Update session state when user enters API key
+        if user_api_key_input:
+            st.session_state.user_gemini_api_key = user_api_key_input
+            GEMINI_API_KEY = user_api_key_input
+            has_api_key = True
+            st.success("✅ API key đã được cấu hình! Bạn có thể bắt đầu hỏi câu hỏi.")
+        else:
+            # Try to load from secrets as fallback
+            try:
+                GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+                if GEMINI_API_KEY and GEMINI_API_KEY != "YOUR_API_KEY_HERE":
+                    has_api_key = True
+                    st.info("ℹ️ Đang sử dụng API key từ cấu hình hệ thống.")
+                else:
+                    has_api_key = False
+                    st.warning("⚠️ Vui lòng nhập API key để sử dụng chatbot AI.")
+            except:
                 has_api_key = False
-            else:
-                has_api_key = True
-        except Exception as e:
-            st.warning("⚠️ Để kích hoạt chatbot với Gemini AI, vui lòng thêm Gemini API key vào file .streamlit/secrets.toml")
-            st.info("🔑 Hướng dẫn lấy API key: https://makersuite.google.com/app/apikey")
-            GEMINI_API_KEY = None
-            has_api_key = False
+                GEMINI_API_KEY = None
+                st.warning("⚠️ Vui lòng nhập API key để sử dụng chatbot AI.")
+        
+        st.markdown("---")
         
         # Function to generate responses about ECG and heart health
         def generate_cardio_response(prompt):
